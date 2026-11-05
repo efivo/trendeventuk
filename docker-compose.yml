@@ -1,0 +1,63 @@
+# Trend Events — Coolify "Docker Compose" deployment (site + PHP API + MariaDB)
+# In Coolify: set a domain on the "app" service (port 80) and fill in the variables below.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-trendevents}
+      DB_USER: ${DB_USER:-trenduser}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      SITE_URL: ${SITE_URL:-https://trendevents.uk}
+      NOTIFY_EMAIL: ${NOTIFY_EMAIL:-Trendeventsuk@gmail.com}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@trendevents.uk}
+      SMTP_HOST: ${SMTP_HOST:-mail.trendevents.uk}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-no-reply@trendevents.uk}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_VERIFY_SSL: ${SMTP_VERIFY_SSL:-true}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      DEBUG: ${DEBUG:-false}
+    volumes:
+      - uploads:/var/www/html/uploads
+      - sessions:/var/www/trend_sessions
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://localhost/api/') === false ? 1 : 0);"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  db:
+    build:
+      context: .
+      dockerfile: docker/db.Dockerfile
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${DB_NAME:-trendevents}
+      MARIADB_USER: ${DB_USER:-trenduser}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  uploads:
+  sessions:
+  db-data:
